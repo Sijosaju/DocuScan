@@ -64,42 +64,98 @@ def scan_document_image(image_path):
     if image is None:
         logger.error("Image could not be loaded.")
         return None
+    
+    # Make a copy of the original image for later processing
     orig = image.copy()
-    ratio = image.shape[0] / 500.0
-    image_resized = cv2.resize(image, (int(image.shape[1] / ratio), 500))
     
-    # Preprocess: convert to grayscale, blur, edge detection
-    gray = cv2.cvtColor(image_resized, cv2.COLOR_BGR2GRAY)
-    gray = cv2.GaussianBlur(gray, (5, 5), 0)
-    edged = cv2.Canny(gray, 75, 200)
+    # Preprocess: convert to grayscale for better edge detection
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    gray_blurred = cv2.GaussianBlur(gray, (5, 5), 0)
     
-    # Find external contours to ignore inner edges
-    cnts, _ = cv2.findContours(edged.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # Try to detect the document's outer boundaries first
+    # We'll use a different approach - find the largest rectangular region
+    
+    # Approach 1: Use edge detection with more adaptive parameters
+    edged = cv2.Canny(gray_blurred, 30, 150)
+    kernel = np.ones((5, 5), np.uint8)
+    dilated = cv2.dilate(edged, kernel, iterations=1)
+    
+    # Find contours from the dilated image
+    cnts, _ = cv2.findContours(dilated.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    # If no external contours are found, try to enhance the image
+    if not cnts or len(cnts) == 0:
+        # Apply adaptive thresholding to separate document from background
+        gray_thresh = cv2.adaptiveThreshold(gray, 255, 
+                                          cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                          cv2.THRESH_BINARY_INV, 11, 2)
+        # Find contours again
+        cnts, _ = cv2.findContours(gray_thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    # If still no luck, process the whole image
+    if not cnts or len(cnts) == 0:
+        logger.warning("No document boundaries detected. Processing whole image.")
+        # Apply image enhancement directly to the whole image
+        enhanced = cv2.adaptiveThreshold(gray, 255, 
+                                       cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                       cv2.THRESH_BINARY, 11, 2)
+        return enhanced
+    
+    # Sort contours by area (largest first)
     cnts = sorted(cnts, key=cv2.contourArea, reverse=True)
-    screenCnt = None
-
-    # Loop over contours and select the one that approximates to a quadrilateral
+    
+    # Find the contour that likely represents the document
+    pageContour = None
     for c in cnts:
-        # Use area check to ensure the contour is sufficiently large
-        if cv2.contourArea(c) < 0.2 * image_resized.shape[0] * image_resized.shape[1]:
+        # Calculate area percentage to filter out small noise contours
+        area_percentage = cv2.contourArea(c) / (image.shape[0] * image.shape[1])
+        
+        # Skip too small or too large contours
+        if area_percentage < 0.1 or area_percentage > 0.95:
             continue
+            
+        # Approximate the contour
         peri = cv2.arcLength(c, True)
         approx = cv2.approxPolyDP(c, 0.02 * peri, True)
+        
+        # If we have a quadrilateral, it's likely our document
         if len(approx) == 4:
-            screenCnt = approx
+            pageContour = approx
             break
-    if screenCnt is None:
-        logger.error("Document contour not found.")
-        return None
-
-    # Apply the four point transform to obtain a top-down view of the document
-    warped = four_point_transform(orig, screenCnt.reshape(4, 2) * ratio)
-    warped_gray = cv2.cvtColor(warped, cv2.COLOR_BGR2GRAY)
-    scanned = cv2.adaptiveThreshold(warped_gray, 255, 
-                                    cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                    cv2.THRESH_BINARY, 11, 2)
     
-    return scanned
+    # If we found a good document contour, transform it
+    if pageContour is not None:
+        warped = four_point_transform(orig, pageContour.reshape(4, 2))
+        warped_gray = cv2.cvtColor(warped, cv2.COLOR_BGR2GRAY)
+        
+        # Use adaptive thresholding to enhance readability
+        scanned = cv2.adaptiveThreshold(warped_gray, 255, 
+                                      cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                      cv2.THRESH_BINARY, 11, 2)
+        return scanned
+    else:
+        # If we couldn't find a good quadrilateral, use the largest contour
+        x, y, w, h = cv2.boundingRect(cnts[0])
+        
+        # Check if the bounding rectangle is reasonable
+        area_percentage = (w * h) / (image.shape[0] * image.shape[1])
+        
+        if area_percentage > 0.3:  # Reasonable size
+            # Crop the image to the bounding rectangle
+            cropped = image[y:y+h, x:x+w]
+            cropped_gray = cv2.cvtColor(cropped, cv2.COLOR_BGR2GRAY)
+            
+            # Enhance the cropped image
+            enhanced = cv2.adaptiveThreshold(cropped_gray, 255, 
+                                           cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                           cv2.THRESH_BINARY, 11, 2)
+            return enhanced
+        else:
+            # Just process the whole image as a fallback
+            enhanced = cv2.adaptiveThreshold(gray, 255, 
+                                           cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                           cv2.THRESH_BINARY, 11, 2)
+            return enhanced
 
 # ----------------------------
 # Flask Routes
