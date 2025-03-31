@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DocuScan: Document Scanner</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <div class="container">
+    <h1>DocuScan: Document Scanner</h1>
+    <p>Upload a document image to get a scanned version.</p>
+    <form id="uploadForm" enctype="multipart/form-data">
+      <input type="file" id="fileInput" name="file" accept="image/*,application/pdf" required>
+      <br>
+      <button type="submit">Scan Document</button>
+    </form>
+    <div id="result" style="display:none;">
+      <h2>Scanned Document</h2>
+      <img id="scannedImage" src="" alt="Scanned Document">
+    </div>
+  </div>
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
