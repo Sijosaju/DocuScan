@@ -12,11 +12,5 @@ DocuScan is a Flask-based document scanning application that leverages OpenCV an
 - **File Upload Support:** Allows uploads of PNG, JPG, JPEG, and PDF files.
 - **Logging:** Uses Python’s logging module to track and debug application events.
 
-## Requirements
 
-- Python 3.x
-- [Flask](https://flask.palletsprojects.com/)
-- [OpenCV (cv2)](https://opencv.org/)
-- [NumPy](https://numpy.org/)
-- [Werkzeug](https://werkzeug.palletsprojects.com/)
 
