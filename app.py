@@ -2,8 +2,6 @@ from flask import Flask, request, jsonify, render_template, url_for
 import os, traceback, re, subprocess, json, difflib
 import cv2
 import numpy as np
-# Removed OCR import and configuration
-#from pdf2image import convert_from_path
 
 # Configure logging
 import logging
