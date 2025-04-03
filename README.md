@@ -23,8 +23,8 @@ DocuScan is a Flask-based web application designed to scan and enhance document 
 
 1.  **Clone the repository:**
     ```bash
-    git clone <repository_url>
-    cd <repository_name>
+    git clone https://github.com/Sijosaju/DocuScan.git
+    cd DocuScan
     ```
 2.  **Create a virtual environment (recommended):**
     ```bash
